@@ -1,17 +1,20 @@
 """
-IFRS 9 (K-IFRS 1109) 금융자산 분류 마법사 v4
+IFRS 9 (K-IFRS 1109) 금융자산 분류 마법사 v5
 ─────────────────────────────────────────────
 실행 방법:
     pip install streamlit pdfplumber python-docx
     streamlit run app.py
 
-v4 변경 사항:
-    · 사이드바 st.tabs 통합 (문서 분석 / 용어 사전)
-    · Pretendard 폰트 + 네이비 블루(#1E3A8A) 브랜드 테마
-    · 상단 고정 단계 진행 바 (번호 + 퍼센트)
-    · 결과 대시보드 (st.metric + st.dataframe)
-    · AI 계약서 분석 통합 (키워드 기반, 실제 LLM 교체 가능)
-    · session_state 전수 점검 및 누락 초기화 보완
+v5 신규 기능:
+    · 다중 파일 업로드 (accept_multiple_files=True)
+      - PDF / DOCX 계약서 + 내부 기안문 동시 업로드
+      - 파일별 역할(계약서·기안문·기타) 자동 감지
+      - 모든 파일 텍스트를 통합하여 분석 베이스로 활용
+    · 사업모형(BM) 자동 추론 (infer_bm)
+      - 계약 조건(중도해지·만기보유 확약·이자수익 구조) 스캔
+      - 경영 의도(안정수익·유동성관리·시세차익) 키워드 스캔
+      - AC / FVOCI / FVPL 추론 + 신뢰도 + 근거 문구 출력
+      - 사용자 확인 시 s_bm 자동 세팅
 """
 
 from __future__ import annotations
@@ -198,6 +201,7 @@ _CONF_CFG = {"high":("높음","#D1FAE5","#065F46"), "medium":("중간","#FEF3C7"
 # ══════════════════════════════════════════════════════════════════════════════
 
 def extract_text(file) -> str:
+    """단일 파일 텍스트 추출 (내부 유틸, 오류 시 [오류] 접두어 문자열 반환)"""
     name = file.name.lower()
     if name.endswith(".pdf"):
         if not _PDF_OK:
@@ -225,7 +229,266 @@ def extract_text(file) -> str:
     return "[오류] PDF 또는 DOCX 파일만 지원합니다."
 
 
-def ai_analyze(text: str) -> dict:
+# ── 파일 역할 감지 키워드 ────────────────────────────────────────────────────
+_ROLE_KEYWORDS = {
+    "계약서": ["계약서", "사채", "채권", "약정서", "인수계약", "발행조건", "사채권자",
+               "갑", "을", "제1조", "제2조", "계약 당사자", "bond", "agreement"],
+    "기안문": ["기안", "결재", "검토의견", "투자목적", "투자계획", "자산 운용",
+               "기대수익", "가입 사유", "보고", "품의", "업무보고", "사업모형",
+               "포트폴리오 전략", "내부 기준"],
+}
+
+def _detect_role(filename: str, text: str) -> str:
+    """파일명·내용으로 역할 추정: '계약서' | '기안문' | '기타'"""
+    fn = filename.lower()
+    # 파일명 우선
+    for role, kws in _ROLE_KEYWORDS.items():
+        if any(kw in fn for kw in kws[:5]):
+            return role
+    # 내용 기반 카운트
+    scores = {}
+    text_lower = text.lower()
+    for role, kws in _ROLE_KEYWORDS.items():
+        scores[role] = sum(1 for kw in kws if kw in text_lower)
+    best = max(scores, key=scores.get)
+    return best if scores[best] >= 2 else "기타"
+
+
+def extract_text_from_files(files: list) -> list:
+    """
+    여러 파일에서 텍스트를 추출하여 파일별 dict 리스트로 반환.
+    반환 구조: [{"filename": str, "role": str, "text": str, "error": bool}, ...]
+    """
+    results = []
+    for f in files:
+        try:
+            # file_uploader는 재사용 불가 — BytesIO로 래핑
+            raw = f.read()
+            name_lower = f.name.lower()
+            text = ""
+            error = False
+
+            if name_lower.endswith(".pdf"):
+                if not _PDF_OK:
+                    text = "[오류] pdfplumber 미설치: pip install pdfplumber"
+                    error = True
+                else:
+                    try:
+                        pages = []
+                        with pdfplumber.open(io.BytesIO(raw)) as pdf:
+                            for pg in pdf.pages:
+                                t = pg.extract_text()
+                                if t:
+                                    pages.append(t)
+                        text = "\n".join(pages) if pages else "[경고] 텍스트를 추출할 수 없습니다 (스캔 이미지 PDF 가능성)."
+                    except Exception as e:
+                        text = f"[오류] PDF 추출 실패: {e}"
+                        error = True
+
+            elif name_lower.endswith(".docx"):
+                if not _DOCX_OK:
+                    text = "[오류] python-docx 미설치: pip install python-docx"
+                    error = True
+                else:
+                    try:
+                        doc = _DocxDocument(io.BytesIO(raw))
+                        text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+                    except Exception as e:
+                        text = f"[오류] DOCX 추출 실패: {e}"
+                        error = True
+            else:
+                text = "[오류] PDF 또는 DOCX 파일만 지원합니다."
+                error = True
+
+            role = _detect_role(f.name, text) if not error else "기타"
+            results.append({"filename": f.name, "role": role, "text": text, "error": error})
+
+        except Exception as e:
+            results.append({"filename": getattr(f, "name", "unknown"), "role": "기타",
+                            "text": f"[오류] 파일 처리 중 예외 발생: {e}", "error": True})
+    return results
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 1-B. BM 자동 추론 로직 (사업모형 추론)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# AC 신호 — 계약 조건 키워드 (계약서 내)
+_BM_AC_CONTRACT = [
+    "중도해지 불가", "중도해지 제한", "만기 보유", "만기보유 확약", "만기까지 보유",
+    "중도상환 불가", "조기상환 제한", "만기 일시 상환", "원리금 지급 조건",
+    "이자 수취", "쿠폰 수취", "원금 상환", "신용위험 관리",
+    "hold to maturity", "held to collect",
+]
+# AC 신호 — 경영 의도 키워드 (기안문 내)
+_BM_AC_INTENT = [
+    "장기적 안정 수익", "안정적 이자수익", "이자수익 확보", "이자수익 목적",
+    "장기 보유", "만기까지 운용", "금리 고정", "신용 관리 목적",
+    "원리금 수취", "이자 수익 구조", "현금흐름 수취", "만기 보유 전략",
+    "AC 모형", "상각후원가",
+]
+# FVOCI 신호 — 계약 조건
+_BM_FVOCI_CONTRACT = [
+    "유동성 조건", "수시 매매 가능", "중도 매각 가능", "필요 시 처분",
+    "듀레이션 관리", "금리 변동 대응", "포트폴리오 재구성",
+    "알엘씨 (LCR)", "유동성 커버리지", "자산부채관리", "ALM",
+    "hold to collect and sell",
+]
+# FVOCI 신호 — 경영 의도
+_BM_FVOCI_INTENT = [
+    "유동성 관리", "유동성 확보", "유동성 목적", "시장 상황에 따른 매각",
+    "유동성 포트폴리오", "필요 시 매각", "ALM 목적", "자산부채 매칭",
+    "만기 매칭", "이자수익 유지", "매도 병행", "FVOCI 모형",
+    "기타포괄손익", "듀레이션 조정",
+]
+# FVPL 신호 — 계약 조건
+_BM_FVPL_CONTRACT = [
+    "단기 보유", "단기 운용", "트레이딩 목적", "시장 가격 수익",
+    "매매차익", "가격 변동 수익", "단기 자금 운용",
+    "fair value through profit", "trading book",
+]
+# FVPL 신호 — 경영 의도
+_BM_FVPL_INTENT = [
+    "단기 시세 차익", "매각 차익", "가격 차익", "단기 매매", "트레이딩",
+    "공정가치 기준 운용", "단기 자금 운용", "시장성 자산 운용",
+    "시세차익 목적", "매매 목적", "투기 목적", "단기 수익",
+    "FVPL 모형", "당기손익",
+]
+
+
+def infer_bm(files_info: list) -> dict:
+    """
+    파일별 텍스트를 계약서 / 기안문으로 구분하여 사업모형을 추론.
+
+    Returns:
+        {
+          "proposed_bm":   "hold" | "both" | "trading" | "ambiguous",
+          "confidence":    "high" | "medium" | "low",
+          "ac_score":      int,
+          "fvoci_score":   int,
+          "fvpl_score":    int,
+          "evidence_lines": [{"source": str, "role": str, "text": str, "signal": str}],
+          "summary":       str,  # 사람이 읽기 쉬운 한줄 요약
+        }
+    """
+    ac_score, fvoci_score, fvpl_score = 0, 0, 0
+    evidence_lines = []
+
+    def _scan(text: str, filename: str, role: str,
+              ac_kws, fvoci_kws, fvpl_kws, weight: float = 1.0):
+        nonlocal ac_score, fvoci_score, fvpl_score
+        tl = text.lower()
+        # 문장 단위 분리 (최대 1,000자 단위로 청크)
+        sentences = [s.strip() for s in re.split(r'[\n。.!?]+', text) if len(s.strip()) > 4]
+        for s in sentences:
+            sl = s.lower()
+            for kw in ac_kws:
+                if kw.lower() in sl:
+                    ac_score += weight
+                    evidence_lines.append({
+                        "source": filename, "role": role,
+                        "text": s[:80].strip(), "signal": "AC",
+                        "keyword": kw,
+                    })
+                    break  # 문장당 1회
+            for kw in fvoci_kws:
+                if kw.lower() in sl:
+                    fvoci_score += weight
+                    evidence_lines.append({
+                        "source": filename, "role": role,
+                        "text": s[:80].strip(), "signal": "FVOCI",
+                        "keyword": kw,
+                    })
+                    break
+            for kw in fvpl_kws:
+                if kw.lower() in sl:
+                    fvpl_score += weight
+                    evidence_lines.append({
+                        "source": filename, "role": role,
+                        "text": s[:80].strip(), "signal": "FVPL",
+                        "keyword": kw,
+                    })
+                    break
+
+    for fi in files_info:
+        if fi["error"] or not fi["text"]:
+            continue
+        role = fi["role"]
+        text = fi["text"]
+        fname = fi["filename"]
+
+        if role == "계약서":
+            # 계약서는 가중치 1.0
+            _scan(text, fname, role,
+                  _BM_AC_CONTRACT, _BM_FVOCI_CONTRACT, _BM_FVPL_CONTRACT, weight=1.0)
+        elif role == "기안문":
+            # 기안문(경영 의도)은 가중치 1.5 — 사업모형 판단에 더 직접적
+            _scan(text, fname, role,
+                  _BM_AC_INTENT, _BM_FVOCI_INTENT, _BM_FVPL_INTENT, weight=1.5)
+        else:
+            # 역할 불명 문서는 두 세트 모두 낮은 가중치로 스캔
+            _scan(text, fname, role,
+                  _BM_AC_CONTRACT + _BM_AC_INTENT,
+                  _BM_FVOCI_CONTRACT + _BM_FVOCI_INTENT,
+                  _BM_FVPL_CONTRACT + _BM_FVPL_INTENT, weight=0.6)
+
+    # 점수 정규화 — 최고 점수 기준
+    total = ac_score + fvoci_score + fvpl_score
+    if total == 0:
+        return {
+            "proposed_bm": "ambiguous", "confidence": "low",
+            "ac_score": 0, "fvoci_score": 0, "fvpl_score": 0,
+            "evidence_lines": [],
+            "summary": "사업모형 관련 키워드가 감지되지 않았습니다. 직접 선택해 주세요.",
+        }
+
+    scores = {"hold": ac_score, "both": fvoci_score, "trading": fvpl_score}
+    winner = max(scores, key=scores.get)
+    max_s = scores[winner]
+    second_s = sorted(scores.values())[-2]
+
+    # 신뢰도: 최고-차순위 차이 비율로 결정
+    gap_ratio = (max_s - second_s) / max(total, 1)
+    if gap_ratio >= 0.25 and max_s >= 3:
+        confidence = "high"
+    elif gap_ratio >= 0.10 or max_s >= 2:
+        confidence = "medium"
+    else:
+        confidence = "low"
+        winner = "ambiguous"  # 너무 접전이면 ambiguous
+
+    # 증거는 winner 신호 우선, 최대 6건
+    signal_map = {"hold": "AC", "both": "FVOCI", "trading": "FVPL", "ambiguous": None}
+    sig = signal_map.get(winner)
+    top_ev = [e for e in evidence_lines if e["signal"] == sig][:3]
+    other_ev = [e for e in evidence_lines if e["signal"] != sig][:3]
+    trimmed_ev = top_ev + other_ev
+
+    # 한줄 요약
+    bm_ko = {"hold": "AC — 계약상 현금흐름 수취 모형", "both": "FVOCI — 수취+매도 병행 모형",
+              "trading": "FVPL — 공정가치 실현 모형", "ambiguous": "추가 검토 필요"}
+    summary_parts = []
+    if ac_score > 0:   summary_parts.append(f"AC 신호 {ac_score:.0f}점")
+    if fvoci_score > 0: summary_parts.append(f"FVOCI 신호 {fvoci_score:.0f}점")
+    if fvpl_score > 0:  summary_parts.append(f"FVPL 신호 {fvpl_score:.0f}점")
+    summary = f"{bm_ko[winner]} 추론 ({', '.join(summary_parts)})"
+
+    return {
+        "proposed_bm": winner,
+        "confidence": confidence,
+        "ac_score": ac_score,
+        "fvoci_score": fvoci_score,
+        "fvpl_score": fvpl_score,
+        "evidence_lines": trimmed_ev,
+        "summary": summary,
+    }
+
+
+def ai_analyze(text: str, files_info: list | None = None) -> dict:
+    """
+    키워드 기반 SPPI + 자산 성격 분석 (기존).
+    files_info 가 전달되면 BM 추론을 추가로 수행하여 결과에 포함.
+    """
     hits: dict = {}
     for step_id, val, kws, conf, basis, std_ref in _AI_RULES:
         matched = [kw for kw in kws if kw.lower() in text.lower()]
@@ -248,7 +511,17 @@ def ai_analyze(text: str) -> dict:
         rule = next((r for r in _AI_RULES if r[0] == step_id and r[1] == winner), (step_id, winner, [], "low", "자동 감지", "—"))
         proposed[step_id] = winner
         evidence.append({"step_id": step_id, "value": winner, "keywords_found": step_hits.get(winner, []), "basis": rule[4], "std_ref": rule[5], "confidence": conf_level})
-    return {"proposed_answers": proposed, "evidence_items": evidence, "conflict_flags": conflicts, "skippable_steps": [s for s in proposed if s != "s_bm"]}
+
+    # BM 추론 — files_info 가 있을 때만 실행
+    bm_inference = infer_bm(files_info) if files_info else None
+
+    return {
+        "proposed_answers": proposed,
+        "evidence_items": evidence,
+        "conflict_flags": conflicts,
+        "skippable_steps": [s for s in proposed if s != "s_bm"],
+        "bm_inference": bm_inference,   # ← v5 신규
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -832,7 +1105,11 @@ def _init_session():
         "ai_overrides": {},
         "ai_confirmed": False,
         "contract_text_preview": "",
-        "wizard_started": False,  # 수동 시작 여부
+        "wizard_started": False,
+        # v5 신규 키
+        "uploaded_file_infos": [],      # extract_text_from_files() 반환값
+        "bm_inference": None,           # infer_bm() 반환값
+        "bm_override": None,            # 사용자가 BM 패널에서 수정한 값
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -841,9 +1118,15 @@ def _init_session():
 
 def _full_reset():
     """전체 상태 초기화"""
-    for k in ["answers","history","show_result","ai_mode","ai_result",
-              "ai_overrides","ai_confirmed","contract_text_preview","wizard_started"]:
-        st.session_state[k] = {} if k in ("answers","ai_overrides") else ([] if k == "history" else (None if k == "ai_result" else (False if isinstance(st.session_state.get(k), bool) else "")))
+    reset_map = {
+        "answers": {}, "ai_overrides": {},
+        "history": [], "uploaded_file_infos": [],
+        "ai_result": None, "bm_inference": None, "bm_override": None,
+        "show_result": False, "ai_mode": False, "ai_confirmed": False, "wizard_started": False,
+        "contract_text_preview": "",
+    }
+    for k, v in reset_map.items():
+        st.session_state[k] = v
     st.rerun()
 
 
@@ -868,7 +1151,7 @@ def _render_sidebar():
         # ── 탭 1: 문서 분석 ──────────────────────────────────────────────────
         with tab_doc:
             st.markdown("**🤖 AI 계약서 자동 분석**")
-            st.caption("PDF 또는 DOCX 계약서를 업로드하면 핵심 조항을 스캔하여 STEP 0~2를 자동 제안합니다.")
+            st.caption("계약서·기안문 등 여러 파일을 한 번에 업로드하면\nAI가 STEP 0~2와 사업모형(BM)을 자동 제안합니다.")
 
             libs_msg = []
             if not _PDF_OK: libs_msg.append("pdfplumber")
@@ -876,24 +1159,60 @@ def _render_sidebar():
             if libs_msg:
                 st.warning(f"미설치: `pip install {' '.join(libs_msg)}`")
 
-            uploaded = st.file_uploader(
-                "계약서 업로드 (PDF / DOCX)",
-                type=["pdf","docx"],
+            uploaded_files = st.file_uploader(
+                "계약서 / 기안문 업로드 (PDF · DOCX, 복수 선택 가능)",
+                type=["pdf", "docx"],
+                accept_multiple_files=True,          # ← v5: 다중 업로드
                 key="file_uploader",
-                help="전환사채 계약서, 대출약정서, 사채 인수계약서 등",
+                help="계약서 + 내부 기안문을 함께 올리면 사업모형을 더 정확하게 추론합니다.",
                 label_visibility="collapsed",
             )
 
-            if uploaded:
+            # 업로드된 파일 목록 미리보기
+            if uploaded_files:
+                st.markdown(
+                    f'<div style="font-size:0.75rem;color:#93C5FD;margin:4px 0 6px">'
+                    f'📎 {len(uploaded_files)}개 파일 선택됨</div>',
+                    unsafe_allow_html=True,
+                )
+                for uf in uploaded_files:
+                    ext_icon = "📄" if uf.name.lower().endswith(".pdf") else "📝"
+                    size_kb = round(uf.size / 1024, 1) if hasattr(uf, "size") else "?"
+                    st.markdown(
+                        f'<div style="background:rgba(255,255,255,0.12);border-radius:6px;'
+                        f'padding:4px 8px;margin-bottom:3px;font-size:0.75rem;color:#DBEAFE">'
+                        f'{ext_icon} {uf.name} <span style="opacity:0.65">({size_kb} KB)</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+
+            if uploaded_files:
                 if st.button("🪄 AI 분석 시작", type="primary", use_container_width=True):
-                    with st.spinner("텍스트 추출 중..."):
-                        text = extract_text(uploaded)
-                    if text.startswith("[오류]"):
-                        st.error(text)
+                    errors, all_texts, files_info = [], [], []
+
+                    with st.spinner(f"텍스트 추출 중 ({len(uploaded_files)}개 파일)..."):
+                        files_info = extract_text_from_files(uploaded_files)
+
+                    # 오류 파일 분리
+                    for fi in files_info:
+                        if fi["error"]:
+                            errors.append(f"⚠️ {fi['filename']}: {fi['text']}")
+                        else:
+                            all_texts.append(fi["text"])
+
+                    if errors:
+                        for msg in errors:
+                            st.error(msg)
+                    if not all_texts:
+                        st.error("텍스트를 추출할 수 있는 파일이 없습니다.")
                     else:
-                        with st.spinner("키워드 분석 중..."):
-                            result = ai_analyze(text)
-                        # 세션 상태 저장 — 메인 화면과 연동
+                        # 통합 텍스트 (모든 파일 결합)
+                        combined_text = "\n\n".join(all_texts)
+
+                        with st.spinner("SPPI·자산 성격 분석 중..."):
+                            result = ai_analyze(combined_text, files_info)
+
+                        # 세션 상태 저장
                         st.session_state.ai_mode = True
                         st.session_state.ai_result = result
                         st.session_state.ai_overrides = {}
@@ -902,7 +1221,17 @@ def _render_sidebar():
                         st.session_state.history = []
                         st.session_state.show_result = False
                         st.session_state.wizard_started = True
-                        st.session_state.contract_text_preview = text[:2000]
+                        st.session_state.uploaded_file_infos = files_info
+                        st.session_state.bm_inference = result.get("bm_inference")
+                        st.session_state.bm_override = None
+                        # 미리보기: 각 파일 앞 500자 통합
+                        preview_parts = []
+                        for fi in files_info:
+                            if not fi["error"]:
+                                preview_parts.append(
+                                    f"=== [{fi['role']}] {fi['filename']} ===\n{fi['text'][:500]}"
+                                )
+                        st.session_state.contract_text_preview = "\n\n".join(preview_parts)[:3000]
                         st.rerun()
 
             st.divider()
@@ -915,6 +1244,9 @@ def _render_sidebar():
                 st.session_state.history = []
                 st.session_state.show_result = False
                 st.session_state.wizard_started = True
+                st.session_state.uploaded_file_infos = []
+                st.session_state.bm_inference = None
+                st.session_state.bm_override = None
                 st.rerun()
 
             if st.session_state.wizard_started:
@@ -924,7 +1256,8 @@ def _render_sidebar():
 
             # AI 완료 상태 표시
             if st.session_state.ai_mode and st.session_state.ai_result:
-                st.success("✅ AI 분석 완료\n메인 화면에서 확인하세요")
+                file_cnt = len(st.session_state.get("uploaded_file_infos", []))
+                st.success(f"✅ AI 분석 완료 ({file_cnt}개 파일)\n메인 화면에서 확인하세요")
 
         # ── 탭 2: 용어 사전 ──────────────────────────────────────────────────
         with tab_dict:
@@ -1064,28 +1397,54 @@ def _render_ai_confirm():
     proposed: dict = result["proposed_answers"]
     evidence: list = result["evidence_items"]
     conflicts: list = result["conflict_flags"]
+    bm_inf: dict | None = result.get("bm_inference") or st.session_state.get("bm_inference")
+    files_info: list = st.session_state.get("uploaded_file_infos", [])
+    file_cnt = len(files_info)
 
+    # ── 헤더 배너 ─────────────────────────────────────────────────────────────
     st.markdown(
         f'<div style="background:{NAVY_LIGHT};border:1.5px solid {NAVY};border-radius:12px;'
         f'padding:1rem 1.4rem;margin-bottom:1.2rem">'
-        f'<span style="font-size:1.1rem;font-weight:700;color:{NAVY}">🤖 AI 계약서 분석 결과</span><br>'
-        f'<span style="font-size:0.83rem;color:#475569">아래 제안된 답변을 확인하고, 필요하면 수정한 뒤 승인하세요. '
-        f'사업모형(STEP 3)은 항상 직접 선택합니다.</span>'
+        f'<span style="font-size:1.1rem;font-weight:700;color:{NAVY}">🤖 AI 계약서 분석 결과'
+        f'{"  ·  " + str(file_cnt) + "개 파일" if file_cnt > 1 else ""}'
+        f'</span><br>'
+        f'<span style="font-size:0.83rem;color:#475569">'
+        f'STEP 0~2는 AI 제안을 검토·수정하세요. 사업모형(STEP 3)은 AI 추론 결과를 참고해 직접 확정하세요.'
+        f'</span>'
         f'</div>',
         unsafe_allow_html=True,
     )
 
+    # ── 분석된 파일 목록 ──────────────────────────────────────────────────────
+    if file_cnt > 0:
+        with st.expander(f"📎 분석된 파일 목록 ({file_cnt}개)", expanded=False):
+            role_colors = {"계약서": ("#DBEAFE","#1E40AF"), "기안문": ("#D1FAE5","#065F46"), "기타": ("#F1F5F9","#475569")}
+            for fi in files_info:
+                bg_r, fg_r = role_colors.get(fi["role"], ("#F1F5F9","#475569"))
+                status = "⚠️ 추출 오류" if fi["error"] else "✅ 추출 완료"
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:0.5px solid #E2E8F0">'
+                    f'<span style="background:{bg_r};color:{fg_r};padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600">{fi["role"]}</span>'
+                    f'<span style="font-size:0.83rem;color:#334155;flex:1">{fi["filename"]}</span>'
+                    f'<span style="font-size:0.72rem;color:#64748B">{status}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+    # ── 충돌 경고 ─────────────────────────────────────────────────────────────
     for cf in conflicts:
         st.warning(f"⚠️ **{_STEP_LABEL.get(cf['step_id'], cf['step_id'])}**: {cf['message']}")
 
+    # ── STEP 0~2 분석 결과 ────────────────────────────────────────────────────
     show_steps = [e for e in evidence if e["step_id"] != "s_bm"]
     if not show_steps:
-        st.info("분석된 키워드가 없습니다. 수동 분류를 진행해주세요.")
+        st.info("SPPI·자산 성격 관련 키워드가 감지되지 않았습니다. 수동 분류를 진행해주세요.")
         if st.button("✏️ 수동 분류로 전환", use_container_width=True):
             st.session_state.ai_mode = False
             st.rerun()
         return
 
+    st.markdown("#### 📋 STEP 0~2 — 자산 성격 · SPPI 분석 결과")
     for ev in show_steps:
         step_id = ev["step_id"]
         proposed_val = proposed.get(step_id, "")
@@ -1125,24 +1484,147 @@ def _render_ai_confirm():
                         st.session_state.ai_overrides[step_id] = new_val
         st.divider()
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # BM 추론 패널 (v5 신규)
+    # ══════════════════════════════════════════════════════════════════════════
+    st.markdown("#### 🎯 STEP 3 — 사업모형(BM) AI 추론 결과")
+
+    _BM_KO = {
+        "hold":      ("AC — 상각후원가 모형", "#D1FAE5", "#065F46"),
+        "both":      ("FVOCI — 수취·매도 병행 모형", "#DBEAFE", "#1E40AF"),
+        "trading":   ("FVPL — 공정가치 실현 모형", "#FEE2E2", "#991B1B"),
+        "ambiguous": ("추가 검토 필요", "#FEF3C7", "#92400E"),
+    }
+
+    if bm_inf:
+        bm_val = bm_inf.get("proposed_bm", "ambiguous")
+        bm_conf = bm_inf.get("confidence", "low")
+        bm_label, bm_bg, bm_fg = _BM_KO.get(bm_val, _BM_KO["ambiguous"])
+        bm_conf_label, _, _ = _CONF_CFG.get(bm_conf, ("낮음","",""))
+        ac_s  = bm_inf.get("ac_score", 0)
+        fo_s  = bm_inf.get("fvoci_score", 0)
+        fp_s  = bm_inf.get("fvpl_score", 0)
+
+        # 추론 결과 배너
+        st.markdown(
+            f'<div style="background:{bm_bg};border:1.5px solid {bm_fg};border-radius:10px;'
+            f'padding:0.9rem 1.2rem;margin-bottom:0.8rem">'
+            f'<div style="font-size:1rem;font-weight:700;color:{bm_fg};margin-bottom:0.3rem">'
+            f'추정 사업모형: {bm_label}'
+            f'<span style="font-size:0.72rem;background:rgba(0,0,0,0.08);padding:2px 8px;'
+            f'border-radius:4px;margin-left:8px">신뢰도: {bm_conf_label}</span></div>'
+            f'<div style="font-size:0.83rem;color:{bm_fg};opacity:0.9">{bm_inf.get("summary","")}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # 점수 막대
+        sc_cols = st.columns(3)
+        total_s = max(ac_s + fo_s + fp_s, 1)
+        for col, (label, score, color) in zip(sc_cols, [
+            ("AC 신호", ac_s, "#059669"), ("FVOCI 신호", fo_s, "#3B82F6"), ("FVPL 신호", fp_s, "#EF4444")
+        ]):
+            pct_s = int(score / total_s * 100)
+            with col:
+                st.markdown(
+                    f'<div style="text-align:center;font-size:0.75rem;color:#64748B;margin-bottom:3px">'
+                    f'{label}</div>'
+                    f'<div style="background:#E2E8F0;border-radius:4px;height:8px">'
+                    f'<div style="background:{color};width:{pct_s}%;height:8px;border-radius:4px"></div></div>'
+                    f'<div style="text-align:center;font-size:0.72rem;color:{color};font-weight:600;margin-top:2px">'
+                    f'{score:.1f}점 ({pct_s}%)</div>',
+                    unsafe_allow_html=True,
+                )
+
+        # 근거 문구 (감지된 문장)
+        ev_lines = bm_inf.get("evidence_lines", [])
+        if ev_lines:
+            with st.expander("📄 판단 근거 — 감지된 문구 상세", expanded=True):
+                sig_colors = {"AC": ("#D1FAE5","#065F46"), "FVOCI": ("#DBEAFE","#1E40AF"), "FVPL": ("#FEE2E2","#991B1B")}
+                for e in ev_lines:
+                    sbg, sfg = sig_colors.get(e["signal"], ("#F1F5F9","#334155"))
+                    st.markdown(
+                        f'<div style="border-left:3px solid {sfg};padding:5px 10px;margin-bottom:5px;'
+                        f'background:{sbg};border-radius:0 6px 6px 0">'
+                        f'<span style="font-size:0.7rem;font-weight:600;color:{sfg}">'
+                        f'{e["signal"]} 신호 · [{e["role"]}] {e["source"]}</span><br>'
+                        f'<span style="font-size:0.8rem;color:#334155">키워드: <b>{e["keyword"]}</b></span><br>'
+                        f'<span style="font-size:0.78rem;color:#64748B;font-style:italic">"{e["text"]}"</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+
+        # 사용자 수정 selectbox
+        bm_opts = [("hold","🏦 AC — 계약상 현금흐름 수취"),
+                   ("both","⚖️ FVOCI — 수취+매도 병행"),
+                   ("trading","📊 FVPL — 공정가치 실현·단기매매"),
+                   ("ambiguous","❓ 추가 검토 필요")]
+        bm_opt_labels = [lbl for v, lbl in bm_opts]
+        bm_opt_vals   = [v for v, lbl in bm_opts]
+        cur_bm = st.session_state.get("bm_override") or bm_val
+        try:
+            bm_idx = bm_opt_vals.index(cur_bm)
+        except ValueError:
+            bm_idx = 0
+        st.caption("사업모형을 수정하려면 아래 선택지를 변경하세요.")
+        bm_selected = st.selectbox(
+            "사업모형 최종 선택",
+            options=bm_opt_labels,
+            index=bm_idx,
+            key="bm_select_override",
+        )
+        bm_new_val = bm_opt_vals[bm_opt_labels.index(bm_selected)]
+        if bm_new_val != st.session_state.get("bm_override"):
+            st.session_state.bm_override = bm_new_val
+
+    else:
+        st.info("업로드된 문서에서 사업모형 관련 키워드가 감지되지 않았습니다. 아래에서 직접 선택해주세요.")
+        bm_opts_manual = [("hold","🏦 AC — 계약상 현금흐름 수취"),
+                          ("both","⚖️ FVOCI — 수취+매도 병행"),
+                          ("trading","📊 FVPL — 공정가치 실현·단기매매"),
+                          ("ambiguous","❓ 추가 검토 필요")]
+        bm_opt_labels_m = [lbl for v, lbl in bm_opts_manual]
+        bm_opt_vals_m   = [v for v, lbl in bm_opts_manual]
+        bm_sel_m = st.selectbox("사업모형 선택", options=bm_opt_labels_m, key="bm_select_manual")
+        st.session_state.bm_override = bm_opt_vals_m[bm_opt_labels_m.index(bm_sel_m)]
+
+    # ── 텍스트 미리보기 ───────────────────────────────────────────────────────
     if st.session_state.contract_text_preview:
-        with st.expander("📄 추출된 계약서 텍스트 미리보기 (앞 2,000자)", expanded=False):
+        with st.expander("📄 추출된 텍스트 미리보기", expanded=False):
             st.text_area("", value=st.session_state.contract_text_preview,
                          height=180, disabled=True, label_visibility="collapsed")
 
     st.markdown("---")
-    st.info("**사업모형(STEP 3)은 내부 운용 방침을 가장 잘 아는 담당자가 직접 선택해야 합니다.**", icon="ℹ️")
+    st.info(
+        "**'확인 및 분류 시작' 버튼을 누르면 AI 분석 결과(STEP 0~2) + 선택된 사업모형(STEP 3)이 "
+        "`session_state.answers`에 자동으로 저장되어 최종 결과로 바로 이동합니다.**",
+        icon="ℹ️",
+    )
 
     c1, c2 = st.columns([2, 1])
     with c1:
-        if st.button("🚀 확인 및 사업모형 선택으로 이동", type="primary", use_container_width=True):
+        if st.button("🚀 확인 및 분류 결과 보기", type="primary", use_container_width=True):
             final = {}
             for ev in show_steps:
                 sid = ev["step_id"]
                 final[sid] = st.session_state.ai_overrides.get(sid, proposed.get(sid, ""))
+
+            # BM 자동 세팅 — bm_override 우선, 없으면 추론값
+            final_bm = (
+                st.session_state.get("bm_override")
+                or (bm_inf.get("proposed_bm") if bm_inf else None)
+                or "ambiguous"
+            )
+            final["s_bm"] = final_bm
+
+            # hold·both 이면 FVO 기본값도 함께 설정 (FVO 아님)
+            if final_bm in ("hold", "both"):
+                final["s_fvo"] = "fvo_no"
+
             st.session_state.answers = final
             st.session_state.ai_confirmed = True
             st.session_state.history = list(final.keys())
+            st.session_state.show_result = True     # 결과 화면으로 바로 이동
             st.rerun()
     with c2:
         if st.button("✏️ 수동 분류로 전환", use_container_width=True):
