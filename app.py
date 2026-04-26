@@ -315,282 +315,238 @@ def extract_text_from_files(files: list) -> list:
 
 # AC 신호 — 계약 조건 키워드 (계약서 내)
 _BM_AC_CONTRACT = [
-    # 기존
     "중도해지 불가", "중도해지 제한", "만기 보유", "만기보유 확약", "만기까지 보유",
     "중도상환 불가", "조기상환 제한", "만기 일시 상환", "원리금 지급 조건",
     "이자 수취", "쿠폰 수취", "원금 상환", "신용위험 관리",
     "hold to maturity", "held to collect",
-    # v6 추가 — 실무 문구
     "원금 회수", "고금리 상품", "확정 이자", "약정 이자율", "원리금 수취 확정",
     "만기 도래", "원리금 지급 일정", "이자 지급 주기", "약정 만기일",
     "중도 해지 불가", "해지 제한", "조기 해지 불가",
+    # v7 — 샘플 파일 문구
+    "고금리 상품 투자", "만기 보유 원칙", "이자 수익 확정",
 ]
-# AC 신호 — 경영 의도 키워드 (기안문 내)
 _BM_AC_INTENT = [
-    # 기존
     "장기적 안정 수익", "안정적 이자수익", "이자수익 확보", "이자수익 목적",
     "장기 보유", "만기까지 운용", "금리 고정", "신용 관리 목적",
     "원리금 수취", "이자 수익 구조", "현금흐름 수취", "만기 보유 전략",
     "AC 모형", "상각후원가",
-    # v6 추가 — 실무 문구
     "안정적인 자금운용", "이자 수익", "안정 수익", "확정 수익 목적",
     "이자수익 중심", "이자 수입 확보", "금리 수익", "자금 운용 계획",
     "고금리 운용", "안정적 운용", "원금 보전", "원금 회수 목적",
+    # v7 — 샘플 기안문 2 문구 그대로
+    "안정적인 자금운용", "고금리 상품 투자를 통한", "안정적 자금 운용",
+    "이자 수익을 통한", "원금 및 이자",
 ]
-# FVOCI 신호 — 계약 조건
 _BM_FVOCI_CONTRACT = [
-    # 기존
     "유동성 조건", "수시 매매 가능", "중도 매각 가능", "필요 시 처분",
     "듀레이션 관리", "금리 변동 대응", "포트폴리오 재구성",
     "알엘씨 (LCR)", "유동성 커버리지", "자산부채관리", "ALM",
     "hold to collect and sell",
-    # v6 추가 — 실무 문구
     "매각 가능성", "조건부 매각", "필요시 매각", "시장 매각",
     "중도 처분 가능", "매도 가능 조건", "이자 및 매각 수익",
+    # v7
+    "매각 가능성 보유", "선택적 매각",
 ]
-# FVOCI 신호 — 경영 의도
 _BM_FVOCI_INTENT = [
-    # 기존
     "유동성 관리", "유동성 확보", "유동성 목적", "시장 상황에 따른 매각",
     "유동성 포트폴리오", "필요 시 매각", "ALM 목적", "자산부채 매칭",
     "만기 매칭", "이자수익 유지", "매도 병행", "FVOCI 모형",
     "기타포괄손익", "듀레이션 조정",
-    # v6 추가 — 실무 문구
     "전략적 투자", "우군 확보", "전략적 관계", "우호 지분", "관계 유지",
     "이자 및 매각 수익", "매각 수익 병행", "필요에 따라 매각",
     "유동성 확보 목적", "자금 조달 대비",
+    # v7 — 샘플 기안문 2 문구 ("우군 확보", "지분 경쟁")
+    "우군 확보", "지분 경쟁", "지분경쟁", "적극적인 우군",
+    "우군 확보 목적", "전략적 우군", "매각 가능성 보유",
 ]
-# FVPL 신호 — 계약 조건
 _BM_FVPL_CONTRACT = [
-    # 기존
     "단기 보유", "단기 운용", "트레이딩 목적", "시장 가격 수익",
     "매매차익", "가격 변동 수익", "단기 자금 운용",
     "fair value through profit", "trading book",
-    # v6 추가 — 실무 문구
     "공정가치 평가", "지분 매각", "주식 매각", "시세 변동",
     "매각 차익 실현", "단기 처분",
+    # v7
+    "투자이익 창출 목적", "시세 차익 실현",
 ]
-# FVPL 신호 — 경영 의도
 _BM_FVPL_INTENT = [
-    # 기존
     "단기 시세 차익", "매각 차익", "가격 차익", "단기 매매", "트레이딩",
     "공정가치 기준 운용", "단기 자금 운용", "시장성 자산 운용",
     "시세차익 목적", "매매 목적", "투기 목적", "단기 수익",
     "FVPL 모형", "당기손익",
-    # v6 추가 — 실무 문구
     "투자이익 창출", "단기 차익", "시세 변동", "지분 매각",
     "매각 이익", "자본 이득", "공정가치 평가 이익", "단기 투자 회수",
+    # v7 — 샘플 기안문 1 문구 ("투자이익 창출")
+    "투자이익 창출", "시세 차익", "단기 운용",
+    "투자 이익 창출", "이익 창출 목적",
 ]
 
-# ── RCPS·지분상품 특별 감지 키워드 (v6 신규) ─────────────────────────────────
+# RCPS·지분상품 특별 감지 키워드
 _EQUITY_SIGNAL_KEYWORDS = [
     "상환전환우선주", "RCPS", "전환우선주", "보통주", "우선주",
     "주식", "지분", "출자", "주주", "보통주 전환",
     "의결권", "배당", "신주인수권",
 ]
-# RCPS 같은 전환 가능 지분 — equity + FVO 플래그
 _RCPS_KEYWORDS = [
     "상환전환우선주", "RCPS", "전환우선주", "전환권", "상환권",
     "조건부 전환", "전환가격", "전환비율",
+]
+# v7 — RCPS+AC 복합 감지용 (계약서에 RCPS + 기안문에 AC 의도 동시 존재 시 노트)
+_AC_INTENT_IN_CONTRACT = [
+    "안정적인 자금운용", "안정적 자금운용", "이자 수익",
+    "고금리 상품", "원금 회수", "만기 보유",
 ]
 
 
 def infer_bm(files_info: list) -> dict:
     """
-    파일별 텍스트를 계약서 / 기안문으로 구분하여 사업모형을 추론. (v6 강화)
+    파일별 텍스트를 계약서 / 기안문으로 구분하여 사업모형을 추론. (v7 고도화)
 
-    변경 사항:
-    - 문맥(Context) 가중치: 부정 문구('불가', '제한') 인접 시 가중치 +0.5
-    - 반복 언급 보너스: 같은 신호 키워드가 같은 문서에 3회 이상 → 보너스 +1.0
-    - RCPS·지분 키워드 감지 시 is_equity_signal=True 플래그
-    - 신뢰도 '낮음'이어도 가장 유력한 값을 suggested_bm으로 항상 반환
-
-    Returns:
-        {
-          "proposed_bm":   "hold" | "both" | "trading" | "ambiguous",
-          "suggested_bm":  "hold" | "both" | "trading"  (신뢰도 무관 최유력값),
-          "confidence":    "high" | "medium" | "low",
-          "ac_score":      float,
-          "fvoci_score":   float,
-          "fvpl_score":    float,
-          "evidence_lines": [...],
-          "summary":       str,
-          "is_equity_signal": bool,   # RCPS·지분 키워드 감지 여부
-          "equity_keywords": list,    # 감지된 지분 키워드
-        }
+    v7:
+    - 샘플 문서 문구("안정적인 자금운용", "우군 확보", "투자이익 창출") 직접 인식
+    - RCPS+AC 복합 감지: 계약서 RCPS + 기안문 AC 의도 동시 → sppi_attention_note
+    - 신뢰도 기준 완화 (짧은 기안문도 판단 가능)
+    - suggested_bm: 신뢰도 무관 최유력값 항상 반환
     """
     ac_score, fvoci_score, fvpl_score = 0.0, 0.0, 0.0
     evidence_lines = []
-    # 반복 언급 카운터 {(filename, signal): count}
     repeat_counter: dict = {}
     is_equity_signal = False
     equity_keywords_found: list = []
+    has_rcps_in_contract = False
+    has_ac_intent_in_any = False
 
-    # 부정·강조 문맥 → 가중치 보너스 적용 패턴
-    _NEGATIVE_BOOST_PATTERNS = ["불가", "제한", "확약", "보장", "의무", "반드시", "필수"]
+    _NEG = ["불가", "제한", "확약", "보장", "의무", "반드시", "필수"]
 
-    def _context_weight(sentence: str, base_weight: float) -> float:
-        """문장 내 부정·강조 패턴이 있으면 가중치 소폭 상향"""
+    def _cw(sentence: str, base: float) -> float:
         sl = sentence.lower()
-        for pat in _NEGATIVE_BOOST_PATTERNS:
-            if pat in sl:
-                return base_weight + 0.5
-        return base_weight
+        return base + 0.5 if any(p in sl for p in _NEG) else base
 
-    def _scan(text: str, filename: str, role: str,
+    def _scan(text: str, fname: str, role: str,
               ac_kws, fvoci_kws, fvpl_kws, weight: float = 1.0):
         nonlocal ac_score, fvoci_score, fvpl_score
-        sentences = [s.strip() for s in re.split(r'[\n。.!?]+', text) if len(s.strip()) > 4]
-
+        sentences = [s.strip() for s in re.split(r'[\n。.!?\n]+', text) if len(s.strip()) > 3]
         for s in sentences:
             sl = s.lower()
-            matched_this = False
-
             for kw in ac_kws:
-                if kw.lower() in sl and not matched_this:
-                    w = _context_weight(s, weight)
+                if kw.lower() in sl:
+                    w = _cw(s, weight)
                     ac_score += w
-                    key = (filename, "AC")
-                    repeat_counter[key] = repeat_counter.get(key, 0) + 1
-                    evidence_lines.append({
-                        "source": filename, "role": role,
-                        "text": s[:80].strip(), "signal": "AC",
-                        "keyword": kw, "weight": round(w, 2),
-                    })
-                    matched_this = True
+                    repeat_counter[(fname, "AC")] = repeat_counter.get((fname, "AC"), 0) + 1
+                    evidence_lines.append({"source": fname, "role": role,
+                        "text": s[:100].strip(), "signal": "AC", "keyword": kw, "weight": round(w, 2)})
                     break
-
-            matched_this_fvoci = False
             for kw in fvoci_kws:
-                if kw.lower() in sl and not matched_this_fvoci:
-                    w = _context_weight(s, weight)
+                if kw.lower() in sl:
+                    w = _cw(s, weight)
                     fvoci_score += w
-                    key = (filename, "FVOCI")
-                    repeat_counter[key] = repeat_counter.get(key, 0) + 1
-                    evidence_lines.append({
-                        "source": filename, "role": role,
-                        "text": s[:80].strip(), "signal": "FVOCI",
-                        "keyword": kw, "weight": round(w, 2),
-                    })
-                    matched_this_fvoci = True
+                    repeat_counter[(fname, "FVOCI")] = repeat_counter.get((fname, "FVOCI"), 0) + 1
+                    evidence_lines.append({"source": fname, "role": role,
+                        "text": s[:100].strip(), "signal": "FVOCI", "keyword": kw, "weight": round(w, 2)})
                     break
-
-            matched_this_fvpl = False
             for kw in fvpl_kws:
-                if kw.lower() in sl and not matched_this_fvpl:
-                    w = _context_weight(s, weight)
+                if kw.lower() in sl:
+                    w = _cw(s, weight)
                     fvpl_score += w
-                    key = (filename, "FVPL")
-                    repeat_counter[key] = repeat_counter.get(key, 0) + 1
-                    evidence_lines.append({
-                        "source": filename, "role": role,
-                        "text": s[:80].strip(), "signal": "FVPL",
-                        "keyword": kw, "weight": round(w, 2),
-                    })
-                    matched_this_fvpl = True
+                    repeat_counter[(fname, "FVPL")] = repeat_counter.get((fname, "FVPL"), 0) + 1
+                    evidence_lines.append({"source": fname, "role": role,
+                        "text": s[:100].strip(), "signal": "FVPL", "keyword": kw, "weight": round(w, 2)})
                     break
 
     for fi in files_info:
         if fi["error"] or not fi["text"]:
             continue
-        role = fi["role"]
-        text = fi["text"]
-        fname = fi["filename"]
+        role, text, fname = fi["role"], fi["text"], fi["filename"]
         tl = text.lower()
 
-        # RCPS·지분 키워드 감지
         for ekw in _EQUITY_SIGNAL_KEYWORDS:
             if ekw.lower() in tl and ekw not in equity_keywords_found:
                 equity_keywords_found.append(ekw)
                 is_equity_signal = True
 
+        if role == "계약서" and any(k.lower() in tl for k in _RCPS_KEYWORDS):
+            has_rcps_in_contract = True
+        if any(k.lower() in tl for k in _AC_INTENT_IN_CONTRACT):
+            has_ac_intent_in_any = True
+
         if role == "계약서":
-            _scan(text, fname, role,
-                  _BM_AC_CONTRACT, _BM_FVOCI_CONTRACT, _BM_FVPL_CONTRACT, weight=1.0)
+            _scan(text, fname, role, _BM_AC_CONTRACT, _BM_FVOCI_CONTRACT, _BM_FVPL_CONTRACT, 1.0)
         elif role == "기안문":
-            _scan(text, fname, role,
-                  _BM_AC_INTENT, _BM_FVOCI_INTENT, _BM_FVPL_INTENT, weight=1.5)
+            _scan(text, fname, role, _BM_AC_INTENT, _BM_FVOCI_INTENT, _BM_FVPL_INTENT, 1.5)
         else:
             _scan(text, fname, role,
                   _BM_AC_CONTRACT + _BM_AC_INTENT,
                   _BM_FVOCI_CONTRACT + _BM_FVOCI_INTENT,
-                  _BM_FVPL_CONTRACT + _BM_FVPL_INTENT, weight=0.6)
+                  _BM_FVPL_CONTRACT + _BM_FVPL_INTENT, 0.7)
 
-    # 반복 언급 보너스: 같은 파일·신호 3회 이상 → +1.0
     for (fname, sig), cnt in repeat_counter.items():
         if cnt >= 3:
-            bonus = 1.0
-            if sig == "AC":    ac_score += bonus
-            elif sig == "FVOCI": fvoci_score += bonus
-            elif sig == "FVPL":  fvpl_score += bonus
+            if sig == "AC":    ac_score += 1.0
+            elif sig == "FVOCI": fvoci_score += 1.0
+            elif sig == "FVPL":  fvpl_score += 1.0
 
-    # ── 점수 집계 및 결과 결정 ────────────────────────────────────────────────
+    sppi_attention_note = None
+    if has_rcps_in_contract and has_ac_intent_in_any:
+        sppi_attention_note = (
+            "⚠️ 계약서에서 RCPS·전환권이, 문서에서 '안정적 자금운용' 등 AC 의도가 동시 감지되었습니다. "
+            "계약상 원리금 요건(SPPI) 충족 여부를 집중 검토해야 합니다. "
+            "주계약이 채무상품이면 복합계약 전체에 SPPI 테스트를 적용합니다(§4.3.2)."
+        )
+
     total = ac_score + fvoci_score + fvpl_score
     scores = {"hold": ac_score, "both": fvoci_score, "trading": fvpl_score}
-
-    # suggested_bm — 신뢰도와 무관하게 항상 최유력값 반환 (요구사항 2-3)
     suggested_bm = max(scores, key=scores.get) if total > 0 else "ambiguous"
 
     if total == 0:
         return {
-            "proposed_bm": "ambiguous",
-            "suggested_bm": "ambiguous",
-            "confidence": "low",
+            "proposed_bm": "ambiguous", "suggested_bm": "ambiguous", "confidence": "low",
             "ac_score": 0.0, "fvoci_score": 0.0, "fvpl_score": 0.0,
             "evidence_lines": [],
             "summary": "사업모형 관련 키워드가 감지되지 않았습니다. 직접 선택해 주세요.",
-            "is_equity_signal": is_equity_signal,
-            "equity_keywords": equity_keywords_found,
+            "is_equity_signal": is_equity_signal, "equity_keywords": equity_keywords_found,
+            "sppi_attention_note": sppi_attention_note,
         }
 
     winner = suggested_bm
     max_s = scores[winner]
     second_s = sorted(scores.values())[-2]
-
-    # 신뢰도 계산 (v6: 기준 소폭 완화 — 실무 문서가 짧아도 판단 가능하도록)
     gap_ratio = (max_s - second_s) / max(total, 1)
-    if gap_ratio >= 0.20 and max_s >= 2.5:
+
+    # v7: 기준 완화 — 짧은 실무 문서 대응
+    if gap_ratio >= 0.15 and max_s >= 1.5:
         confidence = "high"
-    elif gap_ratio >= 0.08 or max_s >= 1.5:
+    elif gap_ratio >= 0.05 or max_s >= 1.0:
         confidence = "medium"
     else:
         confidence = "low"
-        # v6: 접전이어도 proposed_bm은 최유력값으로 설정 (ambiguous 제거)
-        # 단, confidence='low'임을 UI에서 경고로 표시
 
-    proposed_bm = winner  # v6: ambiguous로 떨어지지 않음, 항상 최유력값 사용
-
-    # 증거 정렬: winner 신호 우선, 가중치 높은 순
-    signal_map = {"hold": "AC", "both": "FVOCI", "trading": "FVPL"}
-    sig = signal_map.get(winner, "AC")
+    sig_map = {"hold": "AC", "both": "FVOCI", "trading": "FVPL"}
+    sig = sig_map.get(winner, "AC")
     top_ev = sorted([e for e in evidence_lines if e["signal"] == sig],
                     key=lambda x: x["weight"], reverse=True)[:4]
     other_ev = [e for e in evidence_lines if e["signal"] != sig][:2]
-    trimmed_ev = top_ev + other_ev
 
     bm_ko = {"hold": "AC — 계약상 현금흐름 수취 모형",
               "both": "FVOCI — 수취+매도 병행 모형",
               "trading": "FVPL — 공정가치 실현 모형"}
-    summary_parts = []
-    if ac_score > 0:    summary_parts.append(f"AC {ac_score:.1f}점")
-    if fvoci_score > 0: summary_parts.append(f"FVOCI {fvoci_score:.1f}점")
-    if fvpl_score > 0:  summary_parts.append(f"FVPL {fvpl_score:.1f}점")
-    summary = f"{bm_ko.get(winner,'?')} 추론 ({', '.join(summary_parts)})"
+    parts = []
+    if ac_score > 0:    parts.append(f"AC {ac_score:.1f}점")
+    if fvoci_score > 0: parts.append(f"FVOCI {fvoci_score:.1f}점")
+    if fvpl_score > 0:  parts.append(f"FVPL {fvpl_score:.1f}점")
+    summary = f"{bm_ko.get(winner,'?')} 추론 ({', '.join(parts)})"
     if is_equity_signal:
-        summary += f" | ⚠️ 지분 키워드 감지: {', '.join(equity_keywords_found[:3])}"
+        summary += f" | ⚠️ 지분 키워드: {', '.join(equity_keywords_found[:3])}"
+    if sppi_attention_note:
+        summary += " | 🔍 SPPI 집중검토 필요"
 
     return {
-        "proposed_bm": proposed_bm,
-        "suggested_bm": suggested_bm,   # 신뢰도 무관 최유력값 (v6)
-        "confidence": confidence,
-        "ac_score": ac_score,
-        "fvoci_score": fvoci_score,
-        "fvpl_score": fvpl_score,
-        "evidence_lines": trimmed_ev,
-        "summary": summary,
-        "is_equity_signal": is_equity_signal,
-        "equity_keywords": equity_keywords_found,
+        "proposed_bm": winner, "suggested_bm": suggested_bm, "confidence": confidence,
+        "ac_score": ac_score, "fvoci_score": fvoci_score, "fvpl_score": fvpl_score,
+        "evidence_lines": top_ev + other_ev, "summary": summary,
+        "is_equity_signal": is_equity_signal, "equity_keywords": equity_keywords_found,
+        "sppi_attention_note": sppi_attention_note,
     }
+
+
 
 
 def ai_analyze(text: str, files_info: list | None = None) -> dict:
@@ -1299,7 +1255,7 @@ def _render_sidebar():
                 if st.button("🪄 AI 분석 시작", type="primary", use_container_width=True):
                     errors, all_texts, files_info = [], [], []
 
-                    with st.spinner(f"텍스트 추출 중 ({len(uploaded_files)}개 파일)..."):
+                    with st.spinner(f"📄 텍스트 추출 중 ({len(uploaded_files)}개 파일)..."):
                         files_info = extract_text_from_files(uploaded_files)
 
                     # 오류 파일 분리
@@ -1318,7 +1274,7 @@ def _render_sidebar():
                         # 통합 텍스트 (모든 파일 결합)
                         combined_text = "\n\n".join(all_texts)
 
-                        with st.spinner("SPPI·자산 성격 분석 중..."):
+                        with st.spinner("🔍 SPPI·자산 성격 분석 중..."):
                             result = ai_analyze(combined_text, files_info)
 
                         # 세션 상태 저장
@@ -1704,11 +1660,21 @@ def _render_ai_confirm():
                          height=180, disabled=True, label_visibility="collapsed")
 
     st.markdown("---")
-    st.info(
-        "**'확인 및 분류 시작' 버튼을 누르면 AI 분석 결과(STEP 0~2) + 선택된 사업모형(STEP 3)이 "
-        "`session_state.answers`에 자동으로 저장되어 최종 결과로 바로 이동합니다.**",
-        icon="ℹ️",
-    )
+
+    # 신뢰도에 따른 안내 메시지
+    if bm_inf:
+        conf_now = bm_inf.get("confidence", "low")
+        sppi_note = bm_inf.get("sppi_attention_note")
+        if conf_now == "high":
+            st.success("✅ AI 분석 신뢰도 **높음** — 사업모형 선택 단계를 건너뛰고 바로 결과로 이동합니다.", icon="✅")
+        elif conf_now == "medium":
+            st.info("🟡 AI 분석 신뢰도 **보통** — 사업모형 AI 추론값을 자동 반영하여 결과로 이동합니다.", icon="ℹ️")
+        else:
+            st.warning("🔴 AI 분석 신뢰도 **낮음** — 추론된 최유력 사업모형을 추천값으로 세팅합니다. 결과 화면에서 수정 가능합니다.", icon="⚠️")
+        if sppi_note:
+            st.warning(sppi_note, icon="🔍")
+    else:
+        st.info("**확인 버튼을 누르면 AI 분석 결과(STEP 0~2)와 사업모형이 자동 저장되어 결과로 이동합니다.**", icon="ℹ️")
 
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -1718,9 +1684,7 @@ def _render_ai_confirm():
                 sid = ev["step_id"]
                 final[sid] = st.session_state.ai_overrides.get(sid, proposed.get(sid, ""))
 
-            # ── BM 자동 세팅 (요구사항 2) ──────────────────────────────────
-            # 우선순위: ①사용자 수동 오버라이드 → ②AI 추론값(proposed_bm)
-            # → ③신뢰도 낮아도 suggested_bm(최유력값) → ④ambiguous
+            # BM 자동 세팅 — 수동 오버라이드 > proposed_bm > suggested_bm > ambiguous
             final_bm = (
                 st.session_state.get("bm_override")
                 or (bm_inf.get("proposed_bm") if bm_inf else None)
@@ -1729,37 +1693,38 @@ def _render_ai_confirm():
             )
             final["s_bm"] = final_bm
 
-            # history에도 s_bm 추가 → 사용자가 다시 선택하지 않도록 스킵 (요구사항 2-2)
+            # s_bm 스킵: history에 추가하여 단계 자동 통과
             history_keys = list(final.keys())
             if "s_bm" not in history_keys:
                 history_keys.append("s_bm")
 
-            # hold·both 이면 FVO 기본값 자동 세팅
+            # hold·both → FVO 기본값 자동 세팅
             if final_bm in ("hold", "both"):
                 final["s_fvo"] = "fvo_no"
                 if "s_fvo" not in history_keys:
                     history_keys.append("s_fvo")
 
-            # ── RCPS·지분 신호 감지 시 지분상품 경로 우선 적용 (요구사항 3) ──
+            # RCPS·지분 감지 시 hybrid 교정
             is_eq = bm_inf.get("is_equity_signal", False) if bm_inf else False
             eq_kws = bm_inf.get("equity_keywords", []) if bm_inf else []
             rcps_found = any(kw.lower() in (k.lower() for k in eq_kws) for kw in _RCPS_KEYWORDS)
-
             if is_eq and rcps_found:
-                # RCPS 감지: 자산 성격을 hybrid(복합계약) 또는 equity로 강제 제안
-                # s_asset이 아직 debt로 설정된 경우 hybrid로 교정
                 if final.get("s_asset") == "debt":
-                    final["s_asset"] = "hybrid"   # 전환권 포함 → 복합계약으로 교정
-                # 지분상품 FVOCI 선택권 안내를 위해 equity_hint 플래그 세팅
+                    final["s_asset"] = "hybrid"
                 st.session_state["equity_rcps_hint"] = True
                 st.session_state["equity_rcps_keywords"] = eq_kws
             else:
                 st.session_state["equity_rcps_hint"] = False
 
+            # sppi_attention_note 세션 저장
+            st.session_state["sppi_attention_note"] = (
+                bm_inf.get("sppi_attention_note") if bm_inf else None
+            )
+
             st.session_state.answers = final
             st.session_state.ai_confirmed = True
             st.session_state.history = history_keys
-            st.session_state.show_result = True     # 결과 화면으로 바로 이동
+            st.session_state.show_result = True
             st.rerun()
     with c2:
         if st.button("✏️ 수동 분류로 전환", use_container_width=True):
@@ -1908,7 +1873,12 @@ def _render_result(ans: dict):
     if st.session_state.get("ai_mode") and st.session_state.get("ai_confirmed"):
         st.info("🤖 **AI 하이브리드 분류**: STEP 0~2는 계약서 자동 분석, STEP 3(사업모형)은 AI 추론값이 자동 반영된 결과입니다.", icon="🤖")
 
-    # ── RCPS·지분상품 특별 안내 배너 (v6 신규) ──────────────────────────────
+    # ── SPPI 집중검토 노트 (v7 신규) ─────────────────────────────────────────
+    sppi_note_ss = st.session_state.get("sppi_attention_note")
+    if sppi_note_ss:
+        st.error(sppi_note_ss, icon="🔍")
+
+    # ── RCPS·지분상품 특별 안내 배너 ─────────────────────────────────────────
     if st.session_state.get("equity_rcps_hint"):
         eq_kws_display = ", ".join(st.session_state.get("equity_rcps_keywords", [])[:5])
         st.warning(
@@ -2014,6 +1984,10 @@ def _render_result(ans: dict):
             st.json(case)
         st.divider()
 
+    # ── AI 최종 금융자산 분류 제안 섹션 (v7 신규) ──────────────────────────────
+    if st.session_state.get("ai_confirmed"):
+        _render_ai_final_conclusion(r, ans)
+
     # ── 입력 경로 요약 ────────────────────────────────────────────────────────
     st.markdown("### 🗺️ 분류 경로 요약")
     path_cols = st.columns(3)
@@ -2037,6 +2011,119 @@ def _render_result(ans: dict):
     with c3:
         if st.button("📋 텍스트 리포트", use_container_width=True):
             _show_text_report(r, ans)
+
+
+def _render_ai_final_conclusion(r: dict, ans: dict):
+    """AI가 제안하는 최종 금융자산 분류 결론 섹션 (v7 신규)"""
+    cls = r["classification"]
+    label = r["label"]
+    bm_inf_ss = st.session_state.get("bm_inference") or {}
+
+    # 분류별 결론 문구 및 기준서 근거
+    _CONCLUSIONS = {
+        "AC": {
+            "text": f"본 자산은 **상각후원가(AC) 측정 금융자산**으로 분류하는 것이 적절해 보입니다.",
+            "basis": "계약상 현금흐름 수취 목적 사업모형(§B4.1.2C) + SPPI 충족(§4.1.2⑵) → AC 분류(§4.1.2)",
+            "std": "§4.1.2",
+            "ecl_note": "매 보고기간 말 ECL(기대신용손실)을 인식해야 합니다 [§5.5].",
+            "recycling_note": None,
+            "color": "#D1FAE5", "border": "#059669", "fg": "#065F46", "icon": "✅",
+        },
+        "FVOCI_DEBT": {
+            "text": f"본 자산은 **기타포괄손익-공정가치(FVOCI) 측정 채무상품**으로 분류하는 것이 적절해 보입니다.",
+            "basis": "수취+매도 병행 사업모형(§B4.1.4A) + SPPI 충족(§4.1.2A⑵) → FVOCI 분류(§4.1.2A)",
+            "std": "§4.1.2A",
+            "ecl_note": "ECL 적용 대상이며, 처분 시 OCI 누적손익이 P&L로 재분류(Recycling)됩니다 [§5.7.2].",
+            "recycling_note": "처분 시 Recycling 발생 (채무상품 FVOCI)",
+            "color": "#DBEAFE", "border": "#3B82F6", "fg": "#1E40AF", "icon": "🔵",
+        },
+        "FVOCI_EQ": {
+            "text": f"본 자산은 **기타포괄손익-공정가치(FVOCI) 측정 지분상품**으로 분류하는 것이 적절해 보입니다.",
+            "basis": "비단기매매 지분상품 FVOCI 취소불가 선택권 행사(§4.1.4) → 처분 시 Recycling 금지(§5.7.5)",
+            "std": "§4.1.4 / §5.7.5",
+            "ecl_note": "ECL 적용 없음. 처분 시에도 OCI 손익이 P&L로 이전되지 않습니다.",
+            "recycling_note": "처분 시 Recycling 금지 (지분상품 FVOCI)",
+            "color": "#DBEAFE", "border": "#3B82F6", "fg": "#1E40AF", "icon": "🔵",
+        },
+        "FVPL": {
+            "text": f"본 자산은 **당기손익-공정가치(FVPL) 측정 금융자산**으로 분류하는 것이 적절해 보입니다.",
+            "basis": "SPPI 불충족 또는 공정가치 실현 목적 사업모형 → FVPL 분류(§4.1.4 / §B4.1.5)",
+            "std": "§4.1.4",
+            "ecl_note": "ECL 적용 없음. 모든 공정가치 변동이 당기손익으로 인식됩니다.",
+            "recycling_note": None,
+            "color": "#FEE2E2", "border": "#EF4444", "fg": "#991B1B", "icon": "🔴",
+        },
+    }
+
+    # 분류 키 결정
+    if cls == "FVOCI":
+        key = "FVOCI_EQ" if "지분" in label else "FVOCI_DEBT"
+    elif cls == "FVPL":
+        key = "FVPL"
+    elif cls == "AC":
+        key = "AC"
+    else:
+        key = "FVPL"
+
+    c = _CONCLUSIONS[key]
+
+    st.markdown("---")
+    st.markdown(
+        f'<div style="background:{NAVY_LIGHT};border:2px solid {NAVY};border-radius:14px;'
+        f'padding:1.1rem 1.5rem;margin-bottom:1rem">'
+        f'<div style="font-size:1rem;font-weight:700;color:{NAVY};margin-bottom:0.4rem">'
+        f'🤖 AI가 제안하는 최종 회계처리</div>'
+        f'<div style="font-size:0.85rem;color:#475569">문서 분석 및 분류 로직을 종합한 AI 최종 제안입니다. '
+        f'전문가 검토 후 확정하시기 바랍니다.</div></div>',
+        unsafe_allow_html=True,
+    )
+
+    # 결론 카드
+    st.markdown(
+        f'<div style="background:{c["color"]};border:2px solid {c["border"]};border-radius:12px;'
+        f'padding:1rem 1.4rem;margin-bottom:0.75rem">'
+        f'<div style="font-size:1.1rem;font-weight:700;color:{c["fg"]};margin-bottom:0.35rem">'
+        f'{c["icon"]} {c["text"]}</div>'
+        f'<div style="font-size:0.83rem;color:{c["fg"]};opacity:0.9;margin-bottom:0.4rem">'
+        f'📌 근거: {c["basis"]}</div>'
+        f'<div style="font-size:0.8rem;color:{c["fg"]};opacity:0.85">'
+        f'⚙️ {c["ecl_note"]}</div>'
+        + (f'<div style="font-size:0.8rem;color:{c["fg"]};opacity:0.85;margin-top:3px">'
+           f'🔄 {c["recycling_note"]}</div>' if c.get("recycling_note") else "")
+        + f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    # 기준서 조항 태그
+    cols = st.columns(4)
+    with cols[0]: st.code(c["std"], language=None)
+    bm_used = ans.get("s_bm", "")
+    bm_ko_m = {"hold": "AC 모형(§4.1.2)", "both": "FVOCI 모형(§4.1.2A)",
+               "trading": "FVPL 잔여범주(§B4.1.5)", "ambiguous": "추가 검토 필요"}
+    with cols[1]: st.code(bm_ko_m.get(bm_used, "—"), language=None)
+
+    # 사업모형 점수 요약 (작게)
+    if bm_inf_ss:
+        total_s = max(bm_inf_ss.get("ac_score",0)+bm_inf_ss.get("fvoci_score",0)+bm_inf_ss.get("fvpl_score",0),1)
+        winner_sig = {"hold":"AC","both":"FVOCI","trading":"FVPL"}.get(bm_used,"?")
+        winner_score = {"hold":bm_inf_ss.get("ac_score",0),"both":bm_inf_ss.get("fvoci_score",0),
+                        "trading":bm_inf_ss.get("fvpl_score",0)}.get(bm_used,0)
+        pct = int(winner_score/total_s*100)
+        with cols[2]:
+            st.markdown(
+                f'<div style="text-align:center;font-size:0.72rem;color:#64748B">BM 점수</div>'
+                f'<div style="font-size:0.85rem;font-weight:600;color:{NAVY};text-align:center">'
+                f'{winner_sig} {winner_score:.1f}점 ({pct}%)</div>',
+                unsafe_allow_html=True,
+            )
+        conf_disp = {"high":"🟢 높음","medium":"🟡 보통","low":"🔴 낮음"}.get(
+            bm_inf_ss.get("confidence","low"),"?")
+        with cols[3]:
+            st.markdown(
+                f'<div style="text-align:center;font-size:0.72rem;color:#64748B">신뢰도</div>'
+                f'<div style="font-size:0.85rem;font-weight:600;text-align:center">{conf_disp}</div>',
+                unsafe_allow_html=True,
+            )
 
 
 def _get_accounting_rows(cls: str, r: dict) -> list:
